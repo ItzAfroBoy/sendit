@@ -31,7 +31,7 @@ func main() {
 		fmt.Println("Sending to:", host)
 		for i := range flag.NArg()-1 {
 			filename := flag.Args()[i+1]
-			send(filename, host)
+			addFiles(filename, host)
 		}
 		fmt.Println("Sent")
 	} else if *_recv {
