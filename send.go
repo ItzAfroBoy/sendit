@@ -1,58 +1,80 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/klauspost/compress/zip"
+	"github.com/ItzAfroBoy/mbar"
 )
 
-func addFiles(filename, host string) {
-	fmt.Printf(":: %s\n", filename)
-	stat, err := os.Stat(filename)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(stat)
-	if stat.IsDir() {
-		files, err := os.ReadDir(filename)
-		if err != nil {
-			// exit(err.Error())
-			panic(err)
-		}
-		for _, file := range files {
-			if file.IsDir() {
-				addFiles(file.Name(), host)
-			}
-		}
-		send(filename, host)
-	} else {
-		send(filename, host)
-	}
+func createConnection(host string) (net.Conn, error) {
+	return net.Dial("tcp", host+":9191")
 }
 
-func send(filename, host string) {
-	data, err := os.ReadFile(filename)
-	length := len(data)
+func write(filetype, filename string, file io.Reader,  size int64, conn net.Conn, mb *mbar.MBar) error {
+	_, err := conn.Write(fmt.Appendf(nil, "%s:%s:%d\n", filetype, filename, size))
 	if err != nil {
-		exit(err.Error())
-		panic(err)
+		return err
 	}
 
-	fmt.Println(filename)
-	fmt.Println(length)
+	bar := mb.Add(filename, int(size))
 
-	conn, err := net.Dial("tcp", host+":9191")
+	_, err = io.Copy(io.MultiWriter(conn, bar), file)
 	if err != nil {
-		exit(err.Error())
+		return err
 	}
 
-	_, err = conn.Write(fmt.Appendf(nil, "%s:%d\n", filename, length))
+	return nil
+}
+
+func send(filename string, conn net.Conn, mb *mbar.MBar) error {
+	stat, err := os.Stat(filename)
 	if err != nil {
-		exit(err.Error())
+		return err
 	}
 
-	_, err = conn.Write(fmt.Appendf(nil, "%s\n", data))
-	if err != nil {
-		exit(err.Error())
+	if stat.IsDir() {
+		return sendDirectory(filename, conn, mb)
 	}
+
+	return sendSingleFile(filename, conn, mb)
+}
+
+func sendDirectory(dir string, conn net.Conn, mb *mbar.MBar) error {
+	zipFile := new(bytes.Buffer)
+	w := zip.NewWriter(zipFile)
+	if err := w.AddFS(os.DirFS(dir)); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	return write("zip", dir+".zip", zipFile, int64(zipFile.Len()), conn, mb)
+}
+
+func sendSingleFile(filename string, conn net.Conn, mb *mbar.MBar) error {
+	var filetype string
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	stat, _ := file.Stat()
+	length := stat.Size()
+	filename = filepath.Base(filename)
+	if strings.HasSuffix(filename, ".zip") {
+		filetype = "zip"
+	} else {
+		filetype = "txt"
+	}
+
+	return write(filetype, filename, file, length, conn, mb)
 }
