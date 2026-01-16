@@ -29,7 +29,6 @@ func write(filetype, filename string, file io.Reader,  size int64, conn net.Conn
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 

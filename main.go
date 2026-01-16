@@ -54,7 +54,7 @@ func main() {
 			})
 		}
 		if err := wg.Wait(); err == nil {
-			fmt.Println("All files sent")
+			mb.Finish("All files sent")
 		}
 	} else {
 		fmt.Printf("Awaiting files\r")
