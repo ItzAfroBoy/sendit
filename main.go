@@ -25,7 +25,7 @@ func main() {
 	recv := flag.Bool("receive", false, "Receive a file")
 	flag.Parse()
 
-	mb := mbar.NewMBar()
+	mb := mbar.NewMBar(mbar.Config{ShowTime: true, ShowSpeed: true, ShowSize: true})
 
 	if !*recv {
 		if len(flag.Args()) < 2 {
